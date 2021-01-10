@@ -5,6 +5,7 @@ import sys
 import os
 from MORL.MODQN import MODQN
 from MORL.A2C import Agent
+from MORL.COMA import COMA_Agent
 from utils.ReplayBuffer import ReplayBuffer
 from envs.comm import CommEnv
 from utils.env_wrapper import EnvWrapper, EnvWrapper_sigle
@@ -15,7 +16,7 @@ import time
 import random
 import matplotlib.pyplot as plt
 
-MODE = "PG"
+MODE = "COMA"
 
 def run():
     agent_args = get_args()
@@ -143,6 +144,48 @@ def run():
                 plt.scatter(x_plot, y_plot)
                 plt.show()
 
+    elif MODE == 'COMA':
+        agent = COMA_Agent(agent_args)
+        for ep in range(agent_args.epoches):
+            obs = env.reset()
+            w = random.random()
+            w = 0
+            tot_rew = np.array([0, 0])
+            tot_scal_rew = 0
+            for step in range(1000):
+                w = random.random()
+                acts = agent.choose_action(obs, [w, 1 - w])
+                # acts = [[9, 1, 1] for j in range(agent_args.n_agents)]
+                obs, reward, done, info = env.step(acts)
+                state = env.get_state()
+                if ep != 0:
+                    agent.learn(state, obs, reward, [w, 1 - w], acts, step)
+                tot_scal_rew += reward[0] * w + reward[1] * (1-w)
+            print("reward:", tot_scal_rew)
+            # test phase
+        print("================================================================")
+        print("                          test phase")
+        print("================================================================")
+        x_plot = []
+        y_plot = []
+        for ep in range(1000):
+            print('episode:{0}--------------------------------------------'.format(ep))
+            w = random.random()
+            obs = env.reset()
+            tot_rew = np.array([0, 0])
+            tot_scal_rew = 0
+            for step in range(3000):
+                acts = agent.choose_action(obs, [w, 1 - w])
+                obs_, reward, done, info = env.step(acts)
+                tot_rew = tot_rew + np.array(reward)
+                tot_scal_rew += reward[0] * w + reward[1] * (1 - w)
+            print("ep_reward:{0}, scalarized_reward:{1}, preference:{2}".format(tot_rew, tot_scal_rew, [w, 1 - w]))
+            x_plot.append(tot_rew[0])
+            y_plot.append(tot_rew[1])
+            if ep >= 40 and ep % 20 == 0:
+                plt.scatter(x_plot, y_plot)
+                plt.show()
+
 
 def baseline():
     env_args = get_env_args()
@@ -198,7 +241,7 @@ def get_args():
     parser.add_argument('--update_step', default=300)
     parser.add_argument('--batch_size_p', default=1)
     parser.add_argument('--update_times', default=2)
-    parser.add_argument('--lr', default=0.001)
+    parser.add_argument('--lr', default=0.01)
 
     return parser.parse_args()
 
@@ -212,7 +255,7 @@ def get_env_args():
     parser.add_argument('--lam', default=10)
     parser.add_argument('--mean_normal', default=100000)
     parser.add_argument('--var_normal', default=10000)
-    parser.add_argument('--num_user', default=1)
+    parser.add_argument('--num_user', default=4)
     parser.add_argument('--processing_period', default=0.1)
     parser.add_argument('--discrete', default=True)
     parser.add_argument("--n_threads", default=1)
@@ -222,5 +265,5 @@ def get_env_args():
 
 
 if __name__ == '__main__':
-    # run()
-    baseline()
+    run()
+    # baseline()
